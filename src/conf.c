@@ -2350,9 +2350,30 @@ static int config__read_file_core(struct mosquitto__config *config, bool reload,
 					REQUIRE_BRIDGE(token);
 
 					token = strtok_r(NULL, " ", &saveptr);
+
 					REQUIRE_NON_EMPTY_OPTION(token, "topic");
 
-					topic = token;
+					// Check if the topic is quoted (e.g. for spaces within topic names)
+					if(token && token[0] == '"') {
+						if (strchr(saveptr, '"') == NULL) {
+							log__printf(NULL, MOSQ_LOG_ERR, "Error: Missing closing quote in topic value (%s).", saveptr);
+							return MOSQ_ERR_INVAL;
+						}
+
+						char *topicInQuotes = strtok_r(NULL, "\"", &saveptr);
+
+						topic = mosquitto_malloc(strlen(token) + strlen(topicInQuotes) + 1);
+						if (!topic) {
+							log__printf(NULL, MOSQ_LOG_ERR, "Error: Out of memory.");
+							return MOSQ_ERR_NOMEM;
+						}
+
+						strcpy(topic, token + 1);
+						strcat(topic, " ");
+						strcat(topic, topicInQuotes);
+					}else if(token){
+						topic = token;
+					}
 
 					token = strtok_r(NULL, " ", &saveptr);
 					if(token){
